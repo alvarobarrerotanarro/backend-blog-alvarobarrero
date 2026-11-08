@@ -20,10 +20,15 @@ public class ArticleDAO {
 		this.conn = conn;
 	}
 
+	public boolean tableExists() throws SQLException {
+		DatabaseMetaData metadata = conn.getMetaData();
+		try (ResultSet result = metadata.getTables(null, null, "articles", null)) {
+			return result.next();
+		}
+	}
+
 	public boolean createTable() throws SQLException {
-		DatabaseMetaData metadata = conn.getMetaData(); 
-		ResultSet result = metadata.getTables(null, null, "articles", null);
-		if (!result.next()) {
+		if (!tableExists()) {
 			String sql = "CREATE TABLE IF NOT EXISTS articles (" + "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
 					+ "    title TEXT NOT NULL," + "    summary TEXT," + "    body TEXT NOT NULL," + "    tags TEXT,"
 					+ "    category TEXT," + "    reading_minutes INTEGER DEFAULT 0," + "    meta_description TEXT,"
@@ -32,10 +37,20 @@ public class ArticleDAO {
 					+ "    likes_count INTEGER DEFAULT 0," + "    shares_count INTEGER DEFAULT 0,"
 					+ "    time_created DATETIME DEFAULT CURRENT_TIMESTAMP,"
 					+ "    last_modification DATETIME DEFAULT CURRENT_TIMESTAMP" + ");";
-			PreparedStatement stmt = conn.prepareStatement(sql);
-			stmt.executeUpdate();
-			stmt.close();
-			
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.executeUpdate();
+			}
+			return true;
+		}
+		return false;
+	}
+
+	public boolean dropTable() throws SQLException {
+		if (tableExists()) {
+			String sql = "DROP TABLE articles;";
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.executeUpdate();
+			}
 			return true;
 		}
 		return false;
@@ -46,33 +61,35 @@ public class ArticleDAO {
 				+ "    meta_description, seo_keywords, url_path, status, "
 				+ "    views_count, likes_count, shares_count, time_created, last_modification"
 				+ ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-		PreparedStatement stmt = conn.prepareStatement(sql);
 
-		stmt.setString(1, a.getTitle());
-		stmt.setString(2, a.getSummary());
-		stmt.setString(3, a.getBody());
+		int affectedRows = 0;
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setString(1, a.getTitle());
+			stmt.setString(2, a.getSummary());
+			stmt.setString(3, a.getBody());
 
-		String tagsJoined = (a.getTags() != null) ? String.join(",", a.getTags()) : "";
-		stmt.setString(4, tagsJoined);
+			String tagsJoined = (a.getTags() != null) ? String.join(",", a.getTags()) : "";
+			stmt.setString(4, tagsJoined);
 
-		stmt.setString(5, a.getCategory());
-		stmt.setInt(6, a.getReadingMinutes());
-		stmt.setString(7, a.getMetaDescription());
-		stmt.setString(8, a.getSeoKeywords());
-		stmt.setString(9, a.getUrlPath());
+			stmt.setString(5, a.getCategory());
+			stmt.setInt(6, a.getReadingMinutes());
+			stmt.setString(7, a.getMetaDescription());
+			stmt.setString(8, a.getSeoKeywords());
+			stmt.setString(9, a.getUrlPath());
 
-		stmt.setString(10, a.getStatus() != null ? a.getStatus().name() : "DRAFT");
+			stmt.setString(10, a.getStatus() != null ? a.getStatus().name() : "DRAFT");
 
-		stmt.setInt(11, a.getViewsCount());
-		stmt.setInt(12, a.getLikesCount());
-		stmt.setInt(13, a.getSharesCount());
+			stmt.setInt(11, a.getViewsCount());
+			stmt.setInt(12, a.getLikesCount());
+			stmt.setInt(13, a.getSharesCount());
 
-		stmt.setTimestamp(14, a.getTimeCreated() != null ? new Timestamp(a.getTimeCreated().getTime()) : null);
-		stmt.setTimestamp(15,
-				a.getLastModification() != null ? new Timestamp(a.getLastModification().getTime()) : null);
+			stmt.setTimestamp(14, a.getTimeCreated() != null ? new Timestamp(a.getTimeCreated().getTime()) : null);
+			stmt.setTimestamp(15,
+					a.getLastModification() != null ? new Timestamp(a.getLastModification().getTime()) : null);
 
-		int affectedRows = stmt.executeUpdate();
-		stmt.close();
+			affectedRows = stmt.executeUpdate();
+			stmt.close();
+		}
 
 		return affectedRows > 0;
 	}
@@ -111,56 +128,78 @@ public class ArticleDAO {
 		return article;
 	}
 
-	public ArrayList<Article> find() throws SQLException{
+	public ArrayList<Article> find() throws SQLException {
 		String sql = "SELECT id, title, summary, body, tags, category, reading_minutes, "
 				+ "meta_description, seo_keywords, url_path, status, views_count, "
-				+ "likes_count, shares_count, time_created, last_modification;";
-		PreparedStatement stmt = conn.prepareStatement(sql);
-		
+				+ "likes_count, shares_count, time_created, last_modification FROM articles;";
 		ArrayList<Article> articles = new ArrayList<>();
-		ResultSet result = stmt.executeQuery();
-		while (result.next()) {
-			Article a = makeFromResultSet(result);
-			articles.add(a);
+
+		try (PreparedStatement stmt = conn.prepareStatement(sql); ResultSet result = stmt.executeQuery()) {
+			while (result.next()) {
+				Article a = makeFromResultSet(result);
+				articles.add(a);
+			}
+
 		}
-		
-		stmt.close();
+
 		return articles;
 	}
-	
+
 	public Article findById(int id) throws SQLException {
 		String sql = "SELECT id, title, summary, body, tags, category, reading_minutes, "
 				+ "meta_description, seo_keywords, url_path, status, views_count, "
 				+ "likes_count, shares_count, time_created, last_modification WHERE id = ?;";
-		PreparedStatement stmt = conn.prepareStatement(sql);
-		stmt.setInt(1, id);
 
-		ResultSet result = stmt.executeQuery();
-		if (!result.next()) {
-			stmt.close();
-			return null;
+		Article a = null;
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setInt(1, id);
+
+			try (ResultSet result = stmt.executeQuery()) {
+				if (result.next()) {
+					a = makeFromResultSet(result);
+				}
+			}
 		}
 
-		Article a = makeFromResultSet(result);
-		stmt.close();
+		return a;
+	}
+
+	public Article findByUrlPath(String urlPath) throws SQLException {
+		String sql = "SELECT id, title, summary, body, tags, category, reading_minutes, "
+				+ "meta_description, seo_keywords, url_path, status, views_count, "
+				+ "likes_count, shares_count, time_created, last_modification FROM articles WHERE url_path = ?;";
+
+		Article a = null;
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setString(1, urlPath);
+
+			try (ResultSet result = stmt.executeQuery()) {
+				if (result.next()) {
+					a = makeFromResultSet(result);
+				}
+			}
+		}
+
 		return a;
 	}
 
 	public List<Article> findByTitle(String title) throws SQLException {
 		String sql = "SELECT id, title, summary, body, tags, category, reading_minutes, "
 				+ "meta_description, seo_keywords, url_path, status, views_count, "
-				+ "likes_count, shares_count, time_created, last_modification WHERE title = ?;";
-		PreparedStatement stmt = conn.prepareStatement(sql);
-		stmt.setString(1, title);
-
+				+ "likes_count, shares_count, time_created, last_modification WHERE LOWER(title) LIKE LOWER(?);";
 		ArrayList<Article> articles = new ArrayList<>();
-		ResultSet result = stmt.executeQuery();
-		while (result.next()) {
-			Article a = makeFromResultSet(result);
-			articles.add(a);
+
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setString(1, title);
+
+			try (ResultSet result = stmt.executeQuery()) {
+				while (result.next()) {
+					Article a = makeFromResultSet(result);
+					articles.add(a);
+				}
+			}
 		}
 
-		stmt.close();
 		return articles;
 	}
 
@@ -171,46 +210,47 @@ public class ArticleDAO {
 				+ "    likes_count = ?, " + "    shares_count = ?, " + "    time_created = ?, "
 				+ "    last_modification = ? " + "WHERE id = ?;";
 
-		PreparedStatement stmt = conn.prepareStatement(sql);
+		int affectedRows = 0;
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setString(1, a.getTitle());
+			stmt.setString(2, a.getSummary());
+			stmt.setString(3, a.getBody());
 
-		stmt.setString(1, a.getTitle());
-		stmt.setString(2, a.getSummary());
-		stmt.setString(3, a.getBody());
+			String tagsJoined = (a.getTags() != null) ? String.join(",", a.getTags()) : "";
+			stmt.setString(4, tagsJoined);
 
-		String tagsJoined = (a.getTags() != null) ? String.join(",", a.getTags()) : "";
-		stmt.setString(4, tagsJoined);
+			stmt.setString(5, a.getCategory());
+			stmt.setInt(6, a.getReadingMinutes());
+			stmt.setString(7, a.getMetaDescription());
+			stmt.setString(8, a.getSeoKeywords());
+			stmt.setString(9, a.getUrlPath());
 
-		stmt.setString(5, a.getCategory());
-		stmt.setInt(6, a.getReadingMinutes());
-		stmt.setString(7, a.getMetaDescription());
-		stmt.setString(8, a.getSeoKeywords());
-		stmt.setString(9, a.getUrlPath());
+			stmt.setString(10, a.getStatus() != null ? a.getStatus().name() : "DRAFT");
 
-		stmt.setString(10, a.getStatus() != null ? a.getStatus().name() : "DRAFT");
+			stmt.setInt(11, a.getViewsCount());
+			stmt.setInt(12, a.getLikesCount());
+			stmt.setInt(13, a.getSharesCount());
 
-		stmt.setInt(11, a.getViewsCount());
-		stmt.setInt(12, a.getLikesCount());
-		stmt.setInt(13, a.getSharesCount());
+			stmt.setTimestamp(14, a.getTimeCreated() != null ? new Timestamp(a.getTimeCreated().getTime()) : null);
+			stmt.setTimestamp(15,
+					a.getLastModification() != null ? new Timestamp(a.getLastModification().getTime()) : null);
 
-		stmt.setTimestamp(14, a.getTimeCreated() != null ? new Timestamp(a.getTimeCreated().getTime()) : null);
-		stmt.setTimestamp(15,
-				a.getLastModification() != null ? new Timestamp(a.getLastModification().getTime()) : null);
+			stmt.setInt(16, a.getId());
 
-		stmt.setInt(16, a.getId());
-
-		int affectedRows = stmt.executeUpdate();
-		stmt.close();
+			affectedRows = stmt.executeUpdate();
+		}
 
 		return affectedRows > 0;
 	}
 
 	public boolean deleteById(int id) throws SQLException {
-		String sql = "DELETE FROM article WHERE id = ?";
-		PreparedStatement stmt = conn.prepareStatement(sql);
-		stmt.setInt(1, id);
-		int affectedRows = stmt.executeUpdate();
+		String sql = "DELETE FROM articles WHERE id = ?";
+		int affectedRows = 0;
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setInt(1, id);
+			affectedRows = stmt.executeUpdate();
+		}
 
-		stmt.close();
 		return affectedRows > 0;
 	}
 }

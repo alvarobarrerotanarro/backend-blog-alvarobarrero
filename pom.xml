@@ -22,6 +22,16 @@
 			<artifactId>sqlite-jdbc</artifactId>
 			<version>3.54.1.0</version>
 		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.22.4</version>
+		</dependency>
+		<dependency>
+			<groupId>io.javalin.community.ssl</groupId>
+			<artifactId>javalin-ssl</artifactId>
+			<version>7.2.4</version>
+		</dependency>
 	</dependencies>
 
 
@@ -44,9 +54,22 @@
 							<transformers>
 								<transformer
 									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>com.alvarobarrero.HelloWorld</mainClass>
+									<mainClass>com.alvarobarrero.api.Main</mainClass>
 								</transformer>
 							</transformers>
+
+							<!-- Excluir las firmas de TODOS los JARs de
+									terceros -->
+							<filters>
+								<filter>
+									<artifact>*:*</artifact>
+									<excludes>
+										<exclude>META-INF/*.SF</exclude>
+										<exclude>META-INF/*.DSA</exclude>
+										<exclude>META-INF/*.RSA</exclude>
+									</excludes>
+								</filter>
+							</filters>
 						</configuration>
 					</execution>
 				</executions>

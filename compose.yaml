@@ -5,7 +5,15 @@ services:
       - "${APP_PORT}:3000"
     volumes:
       - "sqlite:/data"
-
+      - "C:/Users/Alvaro/Documents/Secrets/certs/backend-blog-alvarobarrero/backend-blog-alvarobarrero.pem:/data/backend-blog-alvarobarrero.pem"
+      - "C:/Users/Alvaro/Documents/Secrets/certs/backend-blog-alvarobarrero/cert_backend-blog-alvarobarrero.pem:/data/cert_backend-blog-alvarobarrero.pem"
+    environment:
+      - "SQLITE_FILE=${SQLITE_FILE}"
+      - "ADMIN_USR=${ADMIN_USR}"
+      - "ADMIN_PWD=${ADMIN_PWD}"
+      - "CERT_FILE=${CERT_FILE}"
+      - "PRIVATE_KEY_FILE=${PRIVATE_KEY_FILE}"
+      - "APP_PORT=${APP_PORT}"
 volumes:
   sqlite:
     driver: local
