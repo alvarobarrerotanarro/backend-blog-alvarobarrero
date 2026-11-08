@@ -1,0 +1,11 @@
+FROM maven:4.0.0-rc-7-eclipse-temurin-27-alpine
+
+WORKDIR /app
+
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+COPY src ./src
+
+EXPOSE 3000
+CMD ["sh", "-c", "mvn clean package -DskipTests && java -jar target/backend-blog-alvarobarrero-0.0.1-SNAPSHOT.jar"]

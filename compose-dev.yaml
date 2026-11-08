@@ -1,0 +1,18 @@
+services:
+  backend-blog-alvarobarrero:
+    build:
+      context: .
+      dockerfile: DockerfileDev
+    ports:
+      - "${APP_PORT}:3000"
+    volumes:
+      - "sqlite:/data"
+    develop:
+       watch:
+         - action: sync+restart
+           path: ./src
+           target: /app/src
+
+volumes:
+  sqlite:
+    driver: local

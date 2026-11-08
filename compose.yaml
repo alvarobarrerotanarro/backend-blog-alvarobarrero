@@ -1,0 +1,11 @@
+services:
+  backend-blog-alvarobarrero:
+    build: .
+    ports:
+      - "${APP_PORT}:3000"
+    volumes:
+      - "sqlite:/data"
+
+volumes:
+  sqlite:
+    driver: local
